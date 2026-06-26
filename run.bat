@@ -4,19 +4,47 @@ title Talkshow Person Video Trimmer - Antigravity
 
 echo Checking system requirements...
 
-:: 1. Check Python installation
-where python >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [ERROR] Python is not installed or not found in system PATH.
-    echo Please install Python 3.12 (64-bit) and add it to PATH.
-    pause
-    exit /b 1
+:: 1. Detect and Validate Python 3.12
+set PYTHON_CMD=
+py -3.12 -c "import sys" >nul 2>nul
+if %errorlevel% eq 0 (
+    set PYTHON_CMD=py -3.12
+) else (
+    python -c "import sys; exit(0 if sys.version_info[:2] == (3, 12) else 1)" >nul 2>nul
+    if !errorlevel! eq 0 (
+        set PYTHON_CMD=python
+    )
 )
+
+if "%PYTHON_CMD%" == "" (
+    echo [ERROR] Python 3.12 was not detected as the active interpreter.
+    echo This application is verified for Python 3.12 64-bit to match onnxruntime-gpu.
+    echo.
+    echo Checking for default Python version...
+    where python >nul 2>nul
+    if !errorlevel! eq 0 (
+        for /f "tokens=*" %%v in ('python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"') do set CURRENT_VER=%%v
+        echo Found active Python version !CURRENT_VER!.
+        echo [WARNING] Running on Python !CURRENT_VER! may cause installation failures for onnxruntime-gpu==1.20.1.
+        set /p CHOOSE_PROCEED="Do you want to proceed anyway? (Y/N): "
+        if /i "!CHOOSE_PROCEED!" neq "Y" (
+            exit /b 1
+        )
+        set PYTHON_CMD=python
+    ) else (
+        echo [ERROR] No Python installation was detected in system PATH.
+        echo Please install Python 3.12 64-bit and add it to PATH.
+        pause
+        exit /b 1
+    )
+)
+
+echo Using Python interpreter: %PYTHON_CMD%
 
 :: 2. Setup Virtual Environment
 if not exist ".venv" (
     echo Creating Python virtual environment (.venv)...
-    python -m venv .venv
+    %PYTHON_CMD% -m venv .venv
     if !errorlevel! neq 0 (
         echo [ERROR] Failed to create virtual environment.
         pause
